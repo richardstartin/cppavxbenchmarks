@@ -3,7 +3,7 @@
 #include <random>
 #include <chrono>
 
-// g++ -mfma -mavx2 -march=native -O3 mmul.cpp -o mmul.exe && ./mmul.exe
+// g++ -mfma -mavx2 -march=native -O3 -funroll-loops mmul.cpp -o mmul.exe && ./mmul.exe
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // BENCHMARK SUPPORT
@@ -19,7 +19,7 @@ static void fill_matrix(float *array, const int size) {
 }
 
 static float* new_matrix(const int size) {
-    float* matrix = (float*)_aligned_malloc(size * size * sizeof(int), 32);
+    float* matrix = (float*)_aligned_malloc(size * size * sizeof(float), 64);
     fill_matrix(matrix, size);
     return matrix;
 }
@@ -33,7 +33,7 @@ static void clear_matrix(float *matrix, const int size) {
 
 
 static float* new_empty_matrix(const int size) {
-    float* matrix = (float*)_aligned_malloc(size * size * sizeof(int), 32);
+    float* matrix = (float*)_aligned_malloc(size * size * sizeof(float), 64);
     clear_matrix(matrix, size);
     return matrix;
 }
@@ -147,39 +147,9 @@ static void mmul_saxpy_avx(const int n, const float* left, const float* right, f
 }
 
 
-static void mmul_saxpy_avx_unrolled(const int n, const float* left, const float* right, float* result) {
-    int in = 0;
-    for (int i = 0; i < n; ++i) {
-        int kn = 0;
-        for (int k = 0; k < n; ++k) {
-            int j = 0;
-            __m256 aik = _mm256_set1_ps(left[in + k]);
-            for (; j < n; j += 64) {
-                _mm256_store_ps(result + in + j,      _mm256_fmadd_ps(aik, _mm256_load_ps(right + kn + j),      _mm256_load_ps(result + in + j)));
-                _mm256_store_ps(result + in + j + 8,  _mm256_fmadd_ps(aik, _mm256_load_ps(right + kn + j + 8),  _mm256_load_ps(result + in + j + 8)));
-                _mm256_store_ps(result + in + j + 16, _mm256_fmadd_ps(aik, _mm256_load_ps(right + kn + j + 16), _mm256_load_ps(result + in + j + 16)));
-                _mm256_store_ps(result + in + j + 24, _mm256_fmadd_ps(aik, _mm256_load_ps(right + kn + j + 24), _mm256_load_ps(result + in + j + 24)));
-                _mm256_store_ps(result + in + j + 32, _mm256_fmadd_ps(aik, _mm256_load_ps(right + kn + j + 32), _mm256_load_ps(result + in + j + 32)));
-                _mm256_store_ps(result + in + j + 40, _mm256_fmadd_ps(aik, _mm256_load_ps(right + kn + j + 40), _mm256_load_ps(result + in + j + 40)));
-                _mm256_store_ps(result + in + j + 48, _mm256_fmadd_ps(aik, _mm256_load_ps(right + kn + j + 48), _mm256_load_ps(result + in + j + 48)));
-                _mm256_store_ps(result + in + j + 56, _mm256_fmadd_ps(aik, _mm256_load_ps(right + kn + j + 56), _mm256_load_ps(result + in + j + 56)));
-            }
-            for (; j < n; j += 8) {
-                _mm256_store_ps(result + in + j, _mm256_fmadd_ps(aik, _mm256_load_ps(right + kn + j), _mm256_load_ps(result + in + j)));
-            }
-            for (; j < n; ++j) {
-                result[in + j] += left[in + k] * right[kn + j];
-            }
-            kn += n;
-        }
-        in += n;
-    }
-}
-
-
-static void mmul_saxpy_avx_tiled_unrolled(const int n, const float *left, const float *right, float *result) {
-    const int block_width = 512;
-    const int block_height = 32;
+static void mmul_tiled_avx_unrolled(const int n, const float *left, const float *right, float *result) {
+    const int block_width = n >= 256 ? 512 : 256;
+    const int block_height = n >= 512 ? 8 : n >= 256 ? 16 : 32;
     for (int column_offset = 0; column_offset < n; column_offset += block_width) {
         for (int row_offset = 0; row_offset < n; row_offset += block_height) {
             for (int i = 0; i < n; ++i) {
@@ -217,9 +187,9 @@ static void mmul_saxpy_avx_tiled_unrolled(const int n, const float *left, const 
     }
 }
 
-static void mmul_saxpy_avx_tiled(const int n, const float *left, const float *right, float *result) {
-    const int block_width = 256;
-    const int block_height = 64;
+static void mmul_tiled_avx(const int n, const float *left, const float *right, float *result) {
+    const int block_width = n >= 256 ? 512 : 256;
+    const int block_height = n >= 512 ? 8 : n >= 256 ? 16 : 32;
     for (int row_offset = 0; row_offset < n; row_offset += block_height) {
         for (int column_offset = 0; column_offset < n; column_offset += block_width) {
             for (int i = 0; i < n; ++i) {
@@ -278,20 +248,18 @@ int main() {
     void (*blocked)(const int, const float*, const float*, float*) = mmul_blocked;
 
     void (*saxpy_avx)(const int, const float*, const float*, float*) = mmul_saxpy_avx;
-    void (*saxpy_avx_unrolled)(const int, const float*, const float*, float*) = mmul_saxpy_avx_unrolled;
-    void (*saxpy_avx_tiled)(const int, const float*, const float*, float*) = mmul_saxpy_avx_tiled;
-    void (*saxpy_avx_tiled_unrolled)(const int, const float*, const float*, float*) = mmul_saxpy_avx_tiled_unrolled;
+    void (*tiled_avx)(const int, const float*, const float*, float*) = mmul_tiled_avx;
+    void (*tiled_avx_unrolled)(const int, const float*, const float*, float*) = mmul_tiled_avx_unrolled;
 
     std::cout << "name" << "," << "size" << "," << "throughput (ops/s)" << "," << "flops/cycle" << std::endl;
     for (int i = 64; i <= 1024; i += 64) {
-        verify(saxpy, saxpy_avx_tiled, i);
-        verify(saxpy, saxpy_avx_tiled_unrolled, i);
+        verify(saxpy, tiled_avx, i);
+        verify(saxpy, tiled_avx_unrolled, i);
         throughput_benchmark("blocked", 10, 100, i, blocked);
         throughput_benchmark("saxpy", 10, 100, i, saxpy);
         throughput_benchmark("saxpy_avx", 10, 100, i, saxpy_avx);
-        throughput_benchmark("saxpy_avx_unrolled", 10, 100, i, saxpy_avx_unrolled);
-        throughput_benchmark("saxpy_avx_tiled", 10, 100, i, saxpy_avx_tiled);
-        throughput_benchmark("saxpy_avx_tiled_unrolled", 10, 100, i, saxpy_avx_tiled_unrolled);
+        throughput_benchmark("tiled_avx", 10, 100, i, tiled_avx);
+        throughput_benchmark("tiled_avx_unrolled", 10, 100, i, tiled_avx_unrolled);
     }
     return 0;
 }
