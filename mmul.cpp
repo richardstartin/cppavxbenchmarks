@@ -14,12 +14,12 @@ static void fill_matrix(float *array, const int size) {
     std::mt19937_64 mt(rd());
     std::uniform_real_distribution<float> reals(-1E6, 1E6);
     for (size_t i = 0; i < size * size; ++i) {
-        array[i] = i;// reals(mt);
+        array[i] = reals(mt);
     }
 }
 
 static float* new_matrix(const int size) {
-    float* matrix = (float*)_aligned_malloc(size * size * sizeof(float), 64);
+    float* matrix = (float*)aligned_alloc(64, size * size * sizeof(float));
     fill_matrix(matrix, size);
     return matrix;
 }
@@ -33,7 +33,7 @@ static void clear_matrix(float *matrix, const int size) {
 
 
 static float* new_empty_matrix(const int size) {
-    float* matrix = (float*)_aligned_malloc(size * size * sizeof(float), 64);
+    float* matrix = (float*)aligned_alloc(64, size * size * sizeof(float));
     clear_matrix(matrix, size);
     return matrix;
 }
@@ -95,9 +95,9 @@ static void throughput_benchmark(const std::string name,
     long double flops_per_cycle = flops / cycles;
 
     std::cout << name << "," << size << "," << throughput_ps << "," << flops_per_cycle << std::endl;
-    _aligned_free(left);
-    _aligned_free(right);
-    _aligned_free(result);
+    free(left);
+    free(right);
+    free(result);
 }
 
 template<typename MMUL>
@@ -116,10 +116,10 @@ static void verify(const MMUL& trusted, const MMUL& untrusted, const int size) {
         }
     }
 
-    _aligned_free(left);
-    _aligned_free(right);
-    _aligned_free(trusted_result);
-    _aligned_free(untrusted_result);
+    free(left);
+    free(right);
+    free(trusted_result);
+    free(untrusted_result);
 }
 
 
@@ -253,12 +253,12 @@ int main() {
 
     std::cout << "name" << "," << "size" << "," << "throughput (ops/s)" << "," << "flops/cycle" << std::endl;
     for (int i = 64; i <= 1024; i += 64) {
-        verify(saxpy, tiled_avx, i);
-        verify(saxpy, tiled_avx_unrolled, i);
-        throughput_benchmark("blocked", 10, 100, i, blocked);
-        throughput_benchmark("saxpy", 10, 100, i, saxpy);
-        throughput_benchmark("saxpy_avx", 10, 100, i, saxpy_avx);
-        throughput_benchmark("tiled_avx", 10, 100, i, tiled_avx);
+       // verify(saxpy, tiled_avx, i);
+       // verify(saxpy, tiled_avx_unrolled, i);
+       // throughput_benchmark("blocked", 10, 100, i, blocked);
+       // throughput_benchmark("saxpy", 10, 100, i, saxpy);
+       // throughput_benchmark("saxpy_avx", 10, 100, i, saxpy_avx);
+       // throughput_benchmark("tiled_avx", 10, 100, i, tiled_avx);
         throughput_benchmark("tiled_avx_unrolled", 10, 100, i, tiled_avx_unrolled);
     }
     return 0;
