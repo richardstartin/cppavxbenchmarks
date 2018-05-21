@@ -3,7 +3,7 @@
 #include <random>
 #include <chrono>
 
-// g++ -mfma -mavx2 -march=native -O3 -funroll-loops mmul.cpp -o mmul.exe && ./mmul.exe
+// g++ -std=c++11 -mfma -mavx2 -march=native -O3 -funroll-loops mmul.cpp -o mmul.exe && ./mmul.exe
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // BENCHMARK SUPPORT

@@ -1,0 +1,17 @@
+name,size,throughput (ops/s),flops/cycle
+tiled_avx_unrolled,64,119517,24.1004
+tiled_avx_unrolled,128,19732.2,31.8319
+tiled_avx_unrolled,192,5765.26,31.3891
+tiled_avx_unrolled,256,2185.61,28.2064
+tiled_avx_unrolled,320,1093.52,27.5635
+tiled_avx_unrolled,384,647.304,28.1941
+tiled_avx_unrolled,448,382.718,26.471
+tiled_avx_unrolled,512,218.445,22.5532
+tiled_avx_unrolled,576,135.953,19.9853
+tiled_avx_unrolled,640,112.813,22.7488
+tiled_avx_unrolled,704,84.4566,22.6677
+tiled_avx_unrolled,768,62.3733,21.734
+tiled_avx_unrolled,832,46.5154,20.6074
+tiled_avx_unrolled,896,37.1548,20.5587
+tiled_avx_unrolled,960,30.1763,20.537
+tiled_avx_unrolled,1024,12.8903,10.6468
